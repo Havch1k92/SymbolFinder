@@ -14,7 +14,7 @@ int main()
 {
 	SymbolFinder scanner; // Uses current process (default ctor)
 	
-	DoEnginePostProcessing = (DoEnginePostProcessingFn)scanner.FindPattern(L"client.dll", g_DoEnginePostProcessingSig, 41); // 41 is length of the signature
+	DoEnginePostProcessing = (DoEnginePostProcessingFn)scanner.FindPattern(L"client.dll", g_DoEnginePostProcessingSig);
 	if (!DoEnginePostProcessing)
 	{
 		std::wcout << L"DoEnginePostProcessing signature is outdated!\n";

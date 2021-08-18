@@ -83,7 +83,20 @@ SymbolFinder::~SymbolFinder()
 		CloseHandle(proc);
 }
 
-void* SymbolFinder::FindPattern(HMODULE module, SymDescriptor desc, size_t length)
+inline bool CompareSig(char* const data, const SymbolData& symbolData)
+{
+	const char* signature = symbolData.Signature();
+	const char* mask = symbolData.Mask();
+	size_t len = symbolData.Length();
+
+	for (size_t i = 0; i < len; ++i)
+		if (mask[i] != '?' && signature[i] != data[i])
+			return false;
+
+	return true;
+}
+
+void* SymbolFinder::FindPattern(HMODULE module, const SymbolData& data)
 {
 	if (!proc)
 		return nullptr;
@@ -99,34 +112,21 @@ void* SymbolFinder::FindPattern(HMODULE module, SymDescriptor desc, size_t lengt
 	if (!ReadProcessMemory(proc, mInfo.lpBaseOfDll, buffer.get(), mInfo.SizeOfImage, &bytesRead) || bytesRead != mInfo.SizeOfImage)
 		return nullptr;
 
-	for (auto&& [found, offset] = std::pair(false, size_t(0)); offset < mInfo.SizeOfImage - length; ++offset, found = false)
-	{
-		for (size_t i = 0; i < length; ++i)
-		{
-			if (desc.Mask[i] == '?' || desc.Signature[i] == buffer[offset + i])
-			{
-				found = true;
-				continue;
-			}
-
-			break;
-		}
-
-		if (found)
+	for (auto&& [found, offset] = std::pair(true, size_t(0)); offset < mInfo.SizeOfImage - data.Length(); ++offset, found = true)
+		if (CompareSig(buffer.get() + offset, data))
 			return (std::byte*)mInfo.lpBaseOfDll + offset;
-	}
 
 	return nullptr;
 }
 
-void* SymbolFinder::FindPattern(SymDescriptor desc, size_t length) { return FindPattern(GetModuleHandle(nullptr), desc, length); }
+void* SymbolFinder::FindPattern(const SymbolData& data) { return FindPattern(GetModuleHandle(nullptr), data); }
 
-void* SymbolFinder::FindPattern(const _TCHAR* moduleName, SymDescriptor desc, size_t length)
+void* SymbolFinder::FindPattern(const _TCHAR* moduleName, const SymbolData& data)
 {
 	HMODULE module = proc == GetCurrentProcess() ?
 		GetModuleHandle(moduleName) : GetRemoteModuleHandle(proc, moduleName);
 	if (!module)
 		return nullptr;
 
-	return FindPattern(module, desc, length);
+	return FindPattern(module, data);
 }
